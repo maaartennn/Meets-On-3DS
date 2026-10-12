@@ -7,6 +7,8 @@
 
 Bring your virtual pet to the 3DS with physical and touchscreen controls, stereoscopic graphics, and stereo screenshots. This beta includes improved performance and corrected audio.
 
+**AI disclosure:** This frontend was developed with substantial assistance from ChatGPT for coding, debugging, and optimization. I build and test it on my New Nintendo 3DS, but it remains experimental and bugs may still be present. The emulator uses the existing tg18-core project, credited below.
+
 **[Download the experimental beta](https://github.com/maaartennn/Meets-On-3DS/releases/tag/v0.1.0-beta)** · [All releases](https://github.com/maaartennn/Meets-On-3DS/releases) · [Report a bug](https://github.com/maaartennn/Meets-On-3DS/issues)
 
 > **Work in progress:** bugs and incomplete features remain. New Nintendo 3DS is the main tested system. Please back up your saves.

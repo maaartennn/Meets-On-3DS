@@ -1,0 +1,27 @@
+[package]
+name = "tg18-3ds-host-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Host-only workspace; ctru-rs / devkitPro are not linked.
+[workspace]
+
+[features]
+standalone-core-sound = []
+
+[dependencies]
+jpeg-encoder = "=0.6.1"
+tg18-core = { path = "../../../tg18-emu-main/core" }
+
+[[test]]
+name = "runtime"
+path = "../runtime.rs"
+
+[[bin]]
+name = "render-benchmark"
+path = "../render_benchmark.rs"
+
+[[bin]]
+name = "audio-reproduction"
+path = "../audio_reproduction.rs"

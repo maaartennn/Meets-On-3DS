@@ -1,0 +1,7 @@
+/target/
+/tests/host/target/
+/READY_FOR_FTPD/
+__pycache__/
+*.py[cod]
+.DS_Store
+._*

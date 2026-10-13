@@ -1,0 +1,1175 @@
+--- a/tg18-3ds/src/main.rs
++++ b/tg18-3ds/src/main.rs
+@@ -13,8 +13,8 @@
+ use std::sync::Arc;
+ use std::time::Instant;
+ use tg18::save;
+-use tg18::sound::ToneSynth;
+ use tg18::{rtc_seconds_now, Key, Machine, Outcome, CPU_HZ};
++mod audio;
+ mod diagnostics;
+ mod firmware_picker;
+ mod lcd;
+@@ -688,10 +688,9 @@
+ const TIME_STEPS: [f64; 4] = [1.0, 10.0, 60.0, 300.0];
+ 
+ // Audio settings.
+-const AUDIO_RATE: u32 = 44100; // 44100 / 60 = exactly 735 samples per frame
+-const AUDIO_BUFFERS: usize = 4; // small ring of buffers
+-const AUDIO_BUF_CAP: usize = 24000; // samples a buffer can hold (a normal frame needs ~735; a slow one up to ~0.5 s)
+-const AUDIO_FRAME_CAP: usize = 2048; // most samples of emulated time rendered per frame
++const AUDIO_RATE: u32 = audio::SAMPLE_RATE;
++const AUDIO_BUFFERS: usize = 4;
++const AUDIO_BUF_CAP: usize = audio::CHUNK_SAMPLES;
+ const VOLUME: f64 = 0.5; // 0.0 = silent, 1.0 = loudest; lower it if it is too loud
+ 
+ // ---------------------------------------------------------------------------
+@@ -1465,10 +1464,6 @@
+         ch.set_format(AudioFormat::PCM16Stereo);
+         let mix = AudioMix::default();
+         ch.set_mix(&mix);
+-        // Queue the silent buffers so the DSP has something to play from the start.
+-        for w in waves.iter_mut() {
+-            let _ = ch.queue_wave(w);
+-        }
+     }
+ 
+     // Starting the audio can switch the New 3DS fast CPU mode off, so ask for it again.
+@@ -1476,13 +1471,9 @@
+         osSetSpeedupEnable(true);
+     }
+ 
+-    let mut synth = ToneSynth::new(AUDIO_RATE, VOLUME);
+-    // Reuse these buffers throughout gameplay rather than allocating each frame.
+-    // Swapping the event Vec leaves a reusable empty Vec in the emulation core.
++    let mut audio_output = audio::NativeAudio::new(VOLUME);
++    // Reuse the core's event Vec capacity after each batch is accepted.
+     let mut sound_events = Vec::new();
+-    let mut audio_samples: Vec<i16> = Vec::with_capacity(AUDIO_BUF_CAP);
+-    let mut audio_t: Option<f64> = None; // emulated time the sound is rendered up to
+-    let mut stretch: f64 = 1.0; // how much the sound is stretched (1.0 = normal)
+     let mut next_wave: usize = 0; // which buffer to refill next (round robin)
+ 
+     let mut running = true;
+@@ -1612,7 +1603,23 @@
+     let mut last_twinkle_tick: u128 = 0;
+     // Exclude the cinematic intro from the toy's real-time clock bookkeeping.
+     let mut clock_wall = Instant::now();
+-    let mut audio_wall = Instant::now();
++    // Prime a short lead AFTER the fades; waves queued at boot have already
++    // drained by now. Two silent chunks cushion routine CPU/vblank jitter.
++    if let Some(ch) = channel.as_mut() {
++        for (index, wave) in waves.iter_mut().take(2).enumerate() {
++            let data = wave.get_buffer();
++            unsafe {
++                if DSP_FlushDataCache(data.as_ptr().cast(), data.len() as u32) != 0 {
++                    audio_output.stats.cache_flush_errors += 1;
++                }
++            }
++            if ch.queue_wave(wave).is_ok() {
++                next_wave = index + 1;
++            } else {
++                audio_output.stats.queue_errors += 1;
++            }
++        }
++    }
+     let mut profiler = diagnostics::Profiler::new();
+ 
+     while apt.main_loop() {
+@@ -1952,74 +1959,58 @@
+                 machine.sys.game_time += (real_dt - emu_dt).clamp(0.0, 2.0);
+             }
+ 
+-            // --- sound for this frame ---------------------------------------
++            // --- native-rate buzzer audio -----------------------------------
+             let audio_begin = Instant::now();
+-            // Always take the buzzer events (otherwise the list grows forever).
+             std::mem::swap(&mut sound_events, &mut machine.sys.sound.events);
+-            if machine.sys.powered_off {
+-                synth.freq = 0.0; // asleep: silence
+-            }
+-            let rate = AUDIO_RATE as f64;
+-            let start_t = *audio_t.get_or_insert(t_before);
+-            let n_emu = (((machine.now() - start_t) * rate).max(0.0) as usize).min(AUDIO_FRAME_CAP);
+-            let end_t = start_t + n_emu as f64 / rate; // whole samples only, so no drift
+-                                                       // How long did this loop really take, compared with the emulated time it covered?
+-                                                       // If it took clearly longer, stretch the sound over the real time (slow motion).
+-            let real_dt = audio_wall.elapsed().as_secs_f64();
+-            audio_wall = Instant::now();
+-            let emu_dt = (n_emu as f64 / rate).max(0.001);
+-            let raw = real_dt / emu_dt;
+-            if raw > stretch {
+-                stretch = raw; // slower: follow at once
+-            } else {
+-                stretch = stretch * 0.8 + raw * 0.2; // faster again: come back gradually
+-            }
+-            if stretch < 1.25 {
+-                stretch = 1.0;
+-            }
+-            let n = if machine.sys.powered_off || n_emu == 0 {
+-                n_emu
+-            } else {
+-                ((n_emu as f64 * stretch) as usize).clamp(n_emu, AUDIO_BUF_CAP)
+-            };
+-            audio_samples.clear();
+-            synth.render(&sound_events, start_t, end_t, n, &mut audio_samples);
+-            // Retain event Vec capacity for the next frame. Nothing else needs
+-            // the events after the synthesizer has consumed them.
++            audio_output.render(
++                &sound_events,
++                t_before,
++                machine.now(),
++                machine.sys.powered_off,
++            );
+             sound_events.clear();
+-            audio_t = Some(end_t);
+-
+-            if n > 0 {
+-                if let Some(ch) = channel.as_mut() {
+-                    let w = &mut waves[next_wave];
+-                    // Only refill a buffer the DSP has finished with. If none is
+-                    // free, the sound is ahead of the DSP: drop this frame's samples.
+-                    if matches!(w.status(), Status::Free | Status::Done) {
+-                        let filled = match w.get_raw_buffer_mut() {
+-                            Ok(buf) => {
+-                                buf.0.clear();
+-                                for &sample in &audio_samples {
+-                                    buf.0.push([sample, sample]);
+-                                }
+-                                true
+-                            }
+-                            Err(_) => false,
+-                        };
+-                        // Resizing the Vec does not update NDSP's sample count.
+-                        // Without this, every wave plays only its original 735 samples.
+-                        if filled && w.set_sample_count(audio_samples.len()).is_ok() {
+-                            // Wave::new flushes only the initial buffer. Publish
+-                            // newly written samples to the DSP before requeueing.
+-                            let data = w.get_buffer();
+-                            unsafe {
+-                                let _ = DSP_FlushDataCache(data.as_ptr().cast(), data.len() as u32);
+-                            }
+-                            if ch.queue_wave(w).is_ok() {
+-                                next_wave = (next_wave + 1) % waves.len();
+-                            }
++
++            if let Some(ch) = channel.as_mut() {
++                // Submit complete 735-frame chunks in order. A busy/failed wave
++                // leaves its PCM in the FIFO instead of silently dropping notes.
++                for _ in 0..AUDIO_BUFFERS {
++                    let count = audio_output.chunk_len();
++                    if count == 0 {
++                        break;
++                    }
++                    let wave = &mut waves[next_wave];
++                    if !matches!(wave.status(), Status::Free | Status::Done) {
++                        break;
++                    }
++                    match wave.get_raw_buffer_mut() {
++                        Ok(buffer) => {
++                            buffer.0.resize(count, [0, 0]);
++                            audio::interleave_mono(audio_output.chunk(), &mut buffer.0);
++                        }
++                        Err(_) => {
++                            audio_output.stats.buffer_errors += 1;
++                            break;
+                         }
+                     }
++                    if wave.set_sample_count(count).is_err() {
++                        audio_output.stats.sample_count_errors += 1;
++                        break;
++                    }
++                    let data = wave.get_buffer(); // len is BYTES, not stereo frames
++                    unsafe {
++                        if DSP_FlushDataCache(data.as_ptr().cast(), data.len() as u32) != 0 {
++                            audio_output.stats.cache_flush_errors += 1;
++                        }
++                    }
++                    if ch.queue_wave(wave).is_err() {
++                        audio_output.stats.queue_errors += 1;
++                        break;
++                    }
++                    audio_output.commit_chunk();
++                    next_wave = (next_wave + 1) % waves.len();
+                 }
++            } else {
++                audio_output.discard_output();
+             }
+ 
+             audio_us = audio_begin.elapsed().as_micros() as u64;
+@@ -2206,6 +2197,17 @@
+         );
+     }
+ 
++    #[cfg(feature = "audio-debug")]
++    {
++        let _ = fs::write(
++            "sdmc:/3ds/tg18-3ds/audio-status.txt",
++            format!(
++                "native 44100 Hz; chunk 735 stereo frames\n{:?}\npending_samples={}\n",
++                audio_output.stats,
++                audio_output.pending_samples()
++            ),
++        );
++    }
+     // Finish an in-progress Camera write before the homebrew app exits.
+     // This avoids truncating MPO/JPG files if START follows SELECT quickly.
+     if let Some(handle) = pending_photo.take() {
+--- /dev/null
++++ b/tg18-3ds/src/audio.rs
+@@ -0,0 +1,123 @@
++//! Native-rate buzzer rendering and a bounded PCM FIFO, independent of NDSP.
++//!
++//! Wall-clock stalls must not lengthen later notes. Render sample positions
++//! from emulated time, and keep PCM until the output backend accepts it.
++use std::collections::VecDeque;
++use tg18::sound::ToneSynth;
++
++pub const SAMPLE_RATE: u32 = 44_100;
++pub const CHUNK_SAMPLES: usize = SAMPLE_RATE as usize / 60;
++const RENDER_CAP: usize = 2_048;
++const FIFO_CAP: usize = CHUNK_SAMPLES * 8;
++type Event = (f64, f64, f64);
++
++#[derive(Clone, Copy, Default, Debug)]
++pub struct Stats {
++    pub generated_samples: u64,
++    pub queued_samples: u64,
++    pub overrun_samples: u64,
++    pub buffer_errors: u64,
++    pub sample_count_errors: u64,
++    pub cache_flush_errors: u64,
++    pub queue_errors: u64,
++}
++
++pub struct NativeAudio {
++    synth: ToneSynth,
++    cursor: Option<u64>,
++    events: Vec<Event>,
++    samples: Vec<i16>,
++    pending: VecDeque<i16>,
++    powered_off: bool,
++    pub stats: Stats,
++}
++
++fn sample_at(time: f64) -> u64 {
++    // Snap only numerical noise at exact sample boundaries. The tolerance is
++    // 1e-7 of a sample, not a timing or speed adjustment.
++    (time.max(0.0) * SAMPLE_RATE as f64 + 1e-7).floor() as u64
++}
++
++impl NativeAudio {
++    pub fn new(volume: f64) -> Self {
++        Self {
++            synth: ToneSynth::new(SAMPLE_RATE, volume),
++            cursor: None,
++            events: Vec::with_capacity(32),
++            samples: Vec::with_capacity(RENDER_CAP),
++            pending: VecDeque::with_capacity(FIFO_CAP),
++            powered_off: false,
++            stats: Stats::default(),
++        }
++    }
++
++    /// Accept each batch of core events once. Future events remain pending if
++    /// rounding or the per-loop work cap leaves them beyond this render span.
++    pub fn render(&mut self, events: &[Event], before: f64, now: f64, powered_off: bool) {
++        self.events.extend_from_slice(events);
++        if powered_off && !self.powered_off {
++            // Preserve any tone before the power cut, then silence the buzzer
++            // at the cut's actual emulated time (including a partial frame).
++            self.events.push((now, 0.0, 0.5));
++        }
++        self.powered_off = powered_off;
++        let start = *self.cursor.get_or_insert_with(|| sample_at(before));
++        let target = sample_at(now);
++        let count = target.saturating_sub(start).min(RENDER_CAP as u64) as usize;
++        let end = start + count as u64;
++        let t0 = start as f64 / SAMPLE_RATE as f64;
++        let t1 = end as f64 / SAMPLE_RATE as f64;
++        let consumed = self.events.partition_point(|event| event.0 <= t1);
++        self.samples.clear();
++        self.synth
++            .render(&self.events[..consumed], t0, t1, count, &mut self.samples);
++        self.events.drain(..consumed);
++        self.cursor = Some(end);
++        debug_assert_eq!(self.samples.len(), count);
++        self.stats.generated_samples += count as u64;
++
++        // A failing/stalled backend cannot grow memory or audio latency without
++        // bound. Keep the freshest samples and report every overrun explicitly.
++        let overflow = (self.pending.len() + count).saturating_sub(FIFO_CAP);
++        if overflow > 0 {
++            self.pending.drain(..overflow);
++            self.stats.overrun_samples += overflow as u64;
++        }
++        self.pending.extend(self.samples.iter().copied());
++    }
++
++    pub fn chunk_len(&self) -> usize {
++        if self.pending.len() >= CHUNK_SAMPLES {
++            CHUNK_SAMPLES
++        } else {
++            0
++        }
++    }
++
++    pub fn chunk(&self) -> impl Iterator<Item = i16> + '_ {
++        self.pending.iter().copied().take(self.chunk_len())
++    }
++
++    /// Called only after successful NDSP queueing, never for a busy/error wave.
++    pub fn commit_chunk(&mut self) {
++        let count = self.chunk_len();
++        self.pending.drain(..count);
++        self.stats.queued_samples += count as u64;
++    }
++
++    /// Audio service unavailable: keep the event clock current, without a FIFO
++    /// backlog in the intentionally silent fallback.
++    pub fn discard_output(&mut self) {
++        self.pending.clear();
++    }
++
++    pub fn pending_samples(&self) -> usize {
++        self.pending.len()
++    }
++}
++
++pub fn interleave_mono(samples: impl Iterator<Item = i16>, stereo: &mut [[i16; 2]]) {
++    for (dst, sample) in stereo.iter_mut().zip(samples) {
++        *dst = [sample, sample];
++    }
++}
+--- a/tg18-3ds/Cargo.toml
++++ b/tg18-3ds/Cargo.toml
+@@ -4,6 +4,9 @@
+ edition = "2021"
+ authors = ["maaartennn"]
+ description = "Tamagotchi Meets/ON emulator for Nintendo 3DS"
++
++[features]
++audio-debug = []
+ 
+ [dependencies]
+ jpeg-encoder = "0.6.1"
+--- a/tg18-3ds/build.sh
++++ b/tg18-3ds/build.sh
+@@ -4,19 +4,57 @@
+ clean=false
+ patch_core=true
+ check_only=false
++audio_debug=false
+ for arg in "$@"; do
+   case "$arg" in
+     --clean) clean=true ;;
+     --no-core-patch) patch_core=false ;;
+     --check) check_only=true ;;
++    --audio-debug) audio_debug=true ;;
+     --help)
+-      echo 'Usage: bash build.sh [--clean] [--no-core-patch] [--check]'
++      echo 'Usage: bash build.sh [--clean] [--no-core-patch] [--check] [--audio-debug]'
+       echo 'Default: incremental release build, guarded v49 core patch, verified launcher metadata.'
+       exit 0 ;;
+     *) echo "ERROR: unknown option: $arg" >&2; exit 2 ;;
+   esac
+ done
+-python3 tools/validate.py --check-core
++# macOS may resolve python3 to Apple's older interpreter even when Homebrew
++# Python is installed. All build helpers need Python 3.11+ and tomllib.
++supports_build_python() {
++  "$1" -c 'import sys, tomllib; sys.exit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
++}
++tg18_python=""
++if [ -n "${TG18_PYTHON:-}" ]; then
++  if supports_build_python "$TG18_PYTHON"; then
++    tg18_python="$TG18_PYTHON"
++  else
++    echo 'ERROR: TG18_PYTHON must name a working Python 3.11+ interpreter with tomllib.' >&2
++    exit 1
++  fi
++else
++  for candidate in python3 python3.12 python3.11 python3.13 python3.14 \
++    /opt/homebrew/opt/python@3.12/libexec/bin/python3 \
++    /usr/local/opt/python@3.12/libexec/bin/python3 \
++    /opt/homebrew/bin/python3 /usr/local/bin/python3; do
++    if command -v "$candidate" >/dev/null 2>&1 && supports_build_python "$candidate"; then
++      tg18_python="$candidate"
++      break
++    fi
++  done
++  if [ -z "$tg18_python" ]; then
++    echo 'ERROR: Python 3.11+ with tomllib was not found.' >&2
++    echo 'Set TG18_PYTHON to your installed Homebrew Python, then run bash build.sh again.' >&2
++    exit 1
++  fi
++fi
++echo "Build Python: $tg18_python"
++# Prefer the working devkitPro converter over the incompatible cxitool copy.
++if [ -x /opt/devkitpro/tools/bin/3dsxtool ]; then
++  export PATH="/opt/devkitpro/tools/bin:$PATH"
++fi
++cargo_flags=(--release --locked)
++if "$audio_debug"; then cargo_flags+=(--features audio-debug); fi
++"$tg18_python" tools/validate.py --check-core
+ if ! command -v cargo >/dev/null 2>&1; then
+   echo 'ERROR: cargo is missing; install your Rust nightly / devkitPro 3DS toolchain.' >&2
+   exit 1
+@@ -26,23 +64,23 @@
+   echo 'ERROR: smdhtool is missing from PATH (devkitPro).' >&2
+   exit 1
+ fi
+-if "$patch_core"; then python3 tools/patch_core.py; fi
++if "$patch_core"; then "$tg18_python" tools/patch_core.py; fi
+ if "$clean"; then cargo +nightly clean; fi
+ if "$check_only"; then
+-  cargo +nightly 3ds check --release --locked
++  cargo +nightly 3ds check "${cargo_flags[@]}"
+   exit 0
+ fi
+-cargo +nightly 3ds build --release --locked
++cargo +nightly 3ds build "${cargo_flags[@]}"
+ out_dir="${CARGO_TARGET_DIR:-target}/armv6k-nintendo-3ds/release"
+ out="$out_dir/tg18-3ds.3dsx"
+ if [ ! -s "$out" ]; then
+   echo 'ERROR: cargo did not generate a .3dsx.' >&2
+   exit 1
+ fi
+-python3 tools/fix_launcher.py --out-dir "$out_dir"
+-python3 tools/validate.py --binary "$out"
++"$tg18_python" tools/fix_launcher.py --out-dir "$out_dir"
++"$tg18_python" tools/validate.py --binary "$out"
+ mkdir -p READY_FOR_FTPD
+ cp "$out" READY_FOR_FTPD/tg18-3ds.3dsx
+ cp "$out_dir/tg18-3ds.smdh" READY_FOR_FTPD/tg18-3ds.smdh
+-python3 tools/validate.py --binary READY_FOR_FTPD/tg18-3ds.3dsx
++"$tg18_python" tools/validate.py --binary READY_FOR_FTPD/tg18-3ds.3dsx
+ echo 'Build ready: READY_FOR_FTPD/tg18-3ds.3dsx and tg18-3ds.smdh'
+--- a/tg18-3ds/tools/validate.py
++++ b/tg18-3ds/tools/validate.py
+@@ -6,7 +6,11 @@
+ import json
+ import re
+ import sys
+-import tomllib
++try:
++    import tomllib
++except ModuleNotFoundError:
++    sys.exit('ERROR: This validator needs Python 3.11+ with tomllib. '
++             'Run bash build.sh to select a compatible interpreter, or use your Homebrew Python 3.12.')
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ 
+--- a/tg18-3ds/tests/runtime.rs
++++ b/tg18-3ds/tests/runtime.rs
+@@ -1,13 +1,24 @@
+ //! Host tests import the production modules without linking the 3DS services.
+ #![allow(dead_code)]
++// rustc-only QA imports the exact supplied core sound module. Cargo tests use
++// the real sibling tg18-core dependency instead.
++#[cfg(feature = "standalone-core-sound")]
++extern crate self as tg18;
++#[path = "../src/audio.rs"]
++mod audio;
++mod audio_tests;
+ #[path = "../src/diagnostics.rs"]
+ mod diagnostics;
+ #[path = "../src/lcd.rs"]
+ mod lcd;
++mod legacy_audio;
+ #[path = "../src/photo.rs"]
+ mod photo;
+ #[path = "reference_renderer.rs"]
+ mod reference_renderer;
++#[cfg(feature = "standalone-core-sound")]
++#[path = "../../tg18-emu-main/core/src/sound.rs"]
++pub mod sound;
+ 
+ // Profiler tests do not draw; graphics service wiring is checked by a 3DS build.
+ fn blend_rgba_bottom(_: &mut [u8], _: usize, _: usize, _: usize, _: usize, _: &[u8]) {}
+--- /dev/null
++++ b/tg18-3ds/tests/audio_tests.rs
+@@ -0,0 +1,276 @@
++use super::{audio, legacy_audio};
++use audio::{NativeAudio, CHUNK_SAMPLES, SAMPLE_RATE};
++use tg18::sound::ToneSynth;
++
++fn drain(audio: &mut NativeAudio, output: &mut Vec<i16>) {
++    while audio.chunk_len() > 0 {
++        output.extend(audio.chunk());
++        audio.commit_chunk();
++    }
++}
++
++fn trace() -> Vec<(f64, f64, f64)> {
++    vec![
++        (0.0, 2793.0, 0.5),
++        (0.064, 0.0, 0.5),
++        (0.192, 2350.0, 0.5),
++        (0.448, 0.0, 0.5),
++    ]
++}
++
++#[test]
++fn legacy_count_change_exposes_excess_duration_and_queue_drops() {
++    let mut v49 = legacy_audio::LegacyAudio::new();
++    let mut revised = legacy_audio::LegacyAudio::new();
++    let mut old_output = legacy_audio::OutputModel::new();
++    let mut revised_output = legacy_audio::OutputModel::new();
++    let mut wall = 0.0;
++    let mut native = 0;
++    let mut generated = 0;
++    for frame in 0..30 {
++        let dt = if frame == 2 { 0.1 } else { 1.0 / 60.0 };
++        wall += dt;
++        let now = (frame + 1) as f64 / 60.0;
++        let events = if frame == 0 {
++            vec![(0.0, 2793.0, 0.5)]
++        } else if frame == 3 {
++            vec![(0.064, 0.0, 0.5)]
++        } else {
++            vec![]
++        };
++        let (n_emu, old_pcm) = v49.render(now, dt, &events);
++        let (_, revised_pcm) = revised.render(now, dt, &events);
++        assert_eq!(
++            old_pcm, revised_pcm,
++            "capacity/count/flush did not change synthesis"
++        );
++        native += n_emu;
++        generated += revised_pcm.len();
++        old_output.accept(wall, 735);
++        revised_output.accept(wall, revised_pcm.len());
++    }
++    assert_eq!(native, 22049);
++    assert_eq!(generated, 39609);
++    assert_eq!(old_output.dropped, 0);
++    assert_eq!(revised_output.dropped, 14);
++}
++
++#[test]
++fn native_pcm_matches_the_actual_core_one_shot_synthesizer() {
++    let events = trace();
++    let mut reference = ToneSynth::new(SAMPLE_RATE, 0.5);
++    let mut expected = Vec::new();
++    reference.render(&events, 0.0, 0.5, 22050, &mut expected);
++    let mut audio = NativeAudio::new(0.5);
++    let mut actual = Vec::new();
++    let mut event = 0;
++    for frame in 0..30 {
++        let before = frame as f64 / 60.0;
++        let now = (frame + 1) as f64 / 60.0;
++        let end = events.partition_point(|e| e.0 <= now);
++        audio.render(&events[event..end], before, now, false);
++        event = end;
++        drain(&mut audio, &mut actual);
++    }
++    assert_eq!(
++        actual, expected,
++        "pitch, duty, phase and note durations must match native core PCM"
++    );
++    assert_eq!(audio.stats.generated_samples, 22050);
++    assert_eq!(audio.stats.queued_samples, 22050);
++    assert_eq!(audio.stats.overrun_samples, 0);
++}
++
++#[test]
++fn wall_stall_has_no_stretch_tail_or_dropped_native_chunks() {
++    let mut audio = NativeAudio::new(0.5);
++    let mut output = legacy_audio::OutputModel::new();
++    let mut wall = 0.0;
++    let mut count = 0;
++    for frame in 0..30 {
++        wall += if frame == 2 { 0.1 } else { 1.0 / 60.0 };
++        let events = if frame == 0 {
++            vec![(0.0, 2793.0, 0.5)]
++        } else {
++            vec![]
++        };
++        audio.render(
++            &events,
++            frame as f64 / 60.0,
++            (frame + 1) as f64 / 60.0,
++            false,
++        );
++        while audio.chunk_len() > 0 {
++            assert_eq!(audio.chunk_len(), 735);
++            if !output.accept(wall, audio.chunk_len()) {
++                break;
++            }
++            audio.commit_chunk();
++            count += 1;
++        }
++    }
++    assert_eq!(count, 30);
++    assert_eq!(audio.stats.generated_samples, 22050);
++    assert_eq!(audio.stats.queued_samples, 22050);
++    assert_eq!(audio.stats.overrun_samples, 0);
++    assert_eq!(output.dropped, 0);
++}
++
++#[test]
++fn busy_or_failed_output_retains_pcm_in_order() {
++    let mut audio = NativeAudio::new(0.5);
++    audio.render(&[(0.0, 1000.0, 0.5)], 0.0, 1.0 / 60.0, false);
++    let first = audio.chunk().collect::<Vec<_>>();
++    // Production commits only after queue_wave succeeds. No commit models a
++    // busy wave, set_sample_count failure, buffer error or queue rejection.
++    audio.render(&[], 1.0 / 60.0, 2.0 / 60.0, false);
++    assert_eq!(audio.chunk().collect::<Vec<_>>(), first);
++    assert_eq!(audio.pending_samples(), CHUNK_SAMPLES * 2);
++    audio.commit_chunk();
++    assert_eq!(audio.pending_samples(), CHUNK_SAMPLES);
++    assert_eq!(audio.stats.queued_samples, CHUNK_SAMPLES as u64);
++}
++
++#[test]
++fn future_events_survive_the_render_cap() {
++    let events = [(0.0, 1000.0, 0.5), (0.08, 0.0, 0.5)];
++    let mut audio = NativeAudio::new(0.5);
++    let mut actual = Vec::new();
++    audio.render(&events, 0.0, 0.1, false);
++    drain(&mut audio, &mut actual);
++    audio.render(&[], 0.1, 0.1, false);
++    drain(&mut audio, &mut actual);
++    audio.render(&[], 0.1, 0.1, false);
++    drain(&mut audio, &mut actual);
++    let mut expected = Vec::new();
++    ToneSynth::new(SAMPLE_RATE, 0.5).render(&events, 0.0, 0.1, 4410, &mut expected);
++    assert_eq!(actual, expected);
++    assert_eq!(audio.stats.generated_samples, 4410);
++}
++
++#[test]
++fn sub_sample_event_is_deferred_instead_of_applied_early() {
++    let events = [(0.0, 1000.0, 0.5), (0.01666, 0.0, 0.5)];
++    let mut audio = NativeAudio::new(0.5);
++    let mut actual = Vec::new();
++    audio.render(&events, 0.0, 0.01666, false); // 734 complete samples
++    assert_eq!(audio.chunk_len(), 0);
++    audio.render(&[], 0.01666, 2.0 / 60.0, false);
++    drain(&mut audio, &mut actual);
++    let mut expected = Vec::new();
++    ToneSynth::new(SAMPLE_RATE, 0.5).render(&events, 0.0, 2.0 / 60.0, 1470, &mut expected);
++    assert_eq!(actual, expected);
++}
++
++#[test]
++fn partial_frame_power_cut_preserves_tone_then_silences() {
++    let mut audio = NativeAudio::new(0.5);
++    let mut actual = Vec::new();
++    audio.render(&[(0.0, 1000.0, 0.5)], 0.0, 0.00832, true);
++    audio.render(&[], 0.00832, 1.0 / 60.0, true);
++    drain(&mut audio, &mut actual);
++    let mut expected = Vec::new();
++    ToneSynth::new(SAMPLE_RATE, 0.5).render(
++        &[(0.0, 1000.0, 0.5), (0.00832, 0.0, 0.5)],
++        0.0,
++        1.0 / 60.0,
++        735,
++        &mut expected,
++    );
++    assert_eq!(actual, expected);
++    assert!(actual[367..].iter().all(|&s| s == 0));
++}
++
++#[test]
++fn wake_restarts_tone_at_the_core_event_time() {
++    let events = [
++        (0.0, 1000.0, 0.5),
++        (0.00832, 0.0, 0.5),
++        (0.020, 880.0, 0.25),
++    ];
++    let mut audio = NativeAudio::new(0.5);
++    let mut actual = Vec::new();
++    audio.render(&events[..1], 0.0, 0.00832, true);
++    audio.render(&[], 0.00832, 1.0 / 60.0, true);
++    drain(&mut audio, &mut actual);
++    audio.render(&events[2..], 1.0 / 60.0, 2.0 / 60.0, false);
++    drain(&mut audio, &mut actual);
++    let mut expected = Vec::new();
++    ToneSynth::new(SAMPLE_RATE, 0.5).render(&events, 0.0, 2.0 / 60.0, 1470, &mut expected);
++    assert_eq!(actual, expected);
++}
++
++#[test]
++fn stereo_refill_preserves_pcm_pointer_and_byte_length() {
++    let mut stereo = Vec::with_capacity(CHUNK_SAMPLES);
++    let pointer = stereo.as_ptr();
++    for _ in 0..10 {
++        stereo.resize(CHUNK_SAMPLES, [0, 0]);
++        audio::interleave_mono((0..CHUNK_SAMPLES).map(|i| i as i16 - 300), &mut stereo);
++        assert_eq!(stereo.as_ptr(), pointer);
++        assert_eq!(stereo.len(), 735);
++        assert_eq!(std::mem::size_of_val(stereo.as_slice()), 2940);
++        for (i, pair) in stereo.iter().enumerate() {
++            assert_eq!(*pair, [i as i16 - 300; 2]);
++        }
++    }
++}
++
++#[test]
++fn prolonged_backend_failure_is_bounded_and_counted() {
++    let mut audio = NativeAudio::new(0.5);
++    for frame in 0..30 {
++        audio.render(&[], frame as f64 / 60.0, (frame + 1) as f64 / 60.0, false);
++    }
++    assert_eq!(audio.pending_samples(), CHUNK_SAMPLES * 8);
++    assert_eq!(
++        audio.stats.overrun_samples,
++        22050 - (CHUNK_SAMPLES * 8) as u64
++    );
++}
++
++#[test]
++fn silent_service_fallback_does_not_accumulate_pcm() {
++    let mut audio = NativeAudio::new(0.5);
++    for frame in 0..30 {
++        audio.render(&[], frame as f64 / 60.0, (frame + 1) as f64 / 60.0, false);
++        audio.discard_output();
++    }
++    assert_eq!(audio.pending_samples(), 0);
++    assert_eq!(audio.stats.overrun_samples, 0);
++}
++
++#[test]
++fn integer_sample_clock_has_no_long_term_rounding_loss() {
++    let mut audio = NativeAudio::new(0.5);
++    let mut count = 0;
++    for frame in 0..3600 {
++        audio.render(&[], frame as f64 / 60.0, (frame + 1) as f64 / 60.0, false);
++        while audio.chunk_len() > 0 {
++            count += audio.chunk_len();
++            audio.commit_chunk();
++        }
++    }
++    assert_eq!(count, SAMPLE_RATE as usize * 60);
++    assert_eq!(audio.pending_samples(), 0);
++}
++
++#[test]
++fn gameplay_priming_cushions_routine_frame_jitter() {
++    let mut audio = NativeAudio::new(0.5);
++    let mut output = legacy_audio::OutputModel::new();
++    assert!(output.accept(0.0, 735));
++    assert!(output.accept(0.0, 735));
++    let mut wall = 0.0;
++    for frame in 0..120 {
++        wall += 1.0 / 60.0 + if frame % 2 == 0 { 0.003 } else { -0.003 };
++        audio.render(&[], frame as f64 / 60.0, (frame + 1) as f64 / 60.0, false);
++        while audio.chunk_len() > 0 {
++            assert!(output.accept(wall, audio.chunk_len()));
++            audio.commit_chunk();
++        }
++    }
++    assert_eq!(output.dropped, 0);
++    assert_eq!(output.underrun_seconds, 0.0);
++    assert_eq!(audio.stats.overrun_samples, 0);
++}
+--- /dev/null
++++ b/tg18-3ds/tests/legacy_audio.rs
+@@ -0,0 +1,84 @@
++//! Frozen scheduling formula from the uploaded v49 and revised frontends.
++//! The two versions generate the same PCM; their NDSP playback lengths differ.
++use tg18::sound::ToneSynth;
++
++pub struct LegacyAudio {
++    synth: ToneSynth,
++    cursor: f64,
++    stretch: f64,
++}
++
++impl LegacyAudio {
++    pub fn new() -> Self {
++        Self {
++            synth: ToneSynth::new(44_100, 0.5),
++            cursor: 0.0,
++            stretch: 1.0,
++        }
++    }
++
++    pub fn render(
++        &mut self,
++        now: f64,
++        real_dt: f64,
++        events: &[(f64, f64, f64)],
++    ) -> (usize, Vec<i16>) {
++        let rate = 44_100.0;
++        let n_emu = (((now - self.cursor) * rate).max(0.0) as usize).min(2048);
++        let end_t = self.cursor + n_emu as f64 / rate;
++        let raw = real_dt / (n_emu as f64 / rate).max(0.001);
++        if raw > self.stretch {
++            self.stretch = raw;
++        } else {
++            self.stretch = self.stretch * 0.8 + raw * 0.2;
++        }
++        if self.stretch < 1.25 {
++            self.stretch = 1.0;
++        }
++        let n = ((n_emu as f64 * self.stretch) as usize).clamp(n_emu, 24000);
++        let mut out = Vec::with_capacity(n);
++        self.synth.render(events, self.cursor, end_t, n, &mut out);
++        self.cursor = end_t;
++        (n_emu, out)
++    }
++}
++
++/// FIFO-wave playback model. Queued chunks play sequentially at 44,100 Hz.
++/// It models durations/status occupancy, not DSP cache coherency or speakers.
++pub struct OutputModel {
++    finishes: [f64; 4],
++    next: usize,
++    pub dropped: usize,
++    pub samples: usize,
++    pub underrun_seconds: f64,
++    started: bool,
++}
++
++impl OutputModel {
++    pub fn new() -> Self {
++        Self {
++            finishes: [0.0; 4],
++            next: 0,
++            dropped: 0,
++            samples: 0,
++            underrun_seconds: 0.0,
++            started: false,
++        }
++    }
++    pub fn accept(&mut self, wall: f64, samples: usize) -> bool {
++        if self.finishes[self.next] > wall {
++            self.dropped += 1;
++            return false;
++        }
++        let last_finish = self.finishes.iter().copied().fold(0.0, f64::max);
++        if self.started {
++            self.underrun_seconds += (wall - last_finish).max(0.0);
++        }
++        self.started = true;
++        let tail = last_finish.max(wall);
++        self.finishes[self.next] = tail + samples as f64 / 44_100.0;
++        self.next = (self.next + 1) % self.finishes.len();
++        self.samples += samples;
++        true
++    }
++}
+--- /dev/null
++++ b/tg18-3ds/tests/audio_reproduction.rs
+@@ -0,0 +1,62 @@
++//! Reproduce the pacing regression with synthetic timer events and the real core.
++#![allow(dead_code)]
++#[path = "../src/audio.rs"]
++mod audio;
++mod legacy_audio;
++
++fn main() {
++    let mut legacy = legacy_audio::LegacyAudio::new();
++    let mut native = audio::NativeAudio::new(0.5);
++    let mut old_output = legacy_audio::OutputModel::new();
++    let mut revised_output = legacy_audio::OutputModel::new();
++    let mut fixed_output = legacy_audio::OutputModel::new();
++    let mut wall = 0.0;
++    let mut native_old = 0;
++    let mut generated_old = 0;
++    for frame in 0..30 {
++        let dt = if frame == 2 { 0.1 } else { 1.0 / 60.0 };
++        wall += dt;
++        let before = frame as f64 / 60.0;
++        let now = (frame + 1) as f64 / 60.0;
++        let events = if frame == 0 {
++            vec![(0.0, 2793.0, 0.5)]
++        } else if frame == 3 {
++            vec![(0.064, 0.0, 0.5)]
++        } else {
++            vec![]
++        };
++        let (n_emu, pcm) = legacy.render(now, dt, &events);
++        native_old += n_emu;
++        generated_old += pcm.len();
++        old_output.accept(wall, 735);
++        revised_output.accept(wall, pcm.len());
++        native.render(&events, before, now, false);
++        while native.chunk_len() > 0 {
++            if !fixed_output.accept(wall, native.chunk_len()) {
++                break;
++            }
++            native.commit_chunk();
++        }
++    }
++    println!("Synthetic trace: 30 emulation frames; one 100 ms wall-clock stall.");
++    println!(
++        "Legacy synthesis: native={native_old}, generated={generated_old}, extra_ms={:.3}",
++        (generated_old - native_old) as f64 / 44100.0 * 1000.0
++    );
++    println!(
++        "v49 fixed-count playback: dropped_chunks={}",
++        old_output.dropped
++    );
++    println!(
++        "Revised full-length playback: dropped_chunks={}",
++        revised_output.dropped
++    );
++    println!(
++        "Correction: generated={}, queued={}, overrun={}, dropped_chunks={}",
++        native.stats.generated_samples,
++        native.stats.queued_samples,
++        native.stats.overrun_samples,
++        fixed_output.dropped
++    );
++    println!("This is a host duration/occupancy model, not a 3DS speaker recording.");
++}
+--- a/tg18-3ds/tests/test_tools.py
++++ b/tg18-3ds/tests/test_tools.py
+@@ -7,6 +7,7 @@
+ import os
+ import shutil
+ import struct
++import sys
+ import subprocess
+ import tempfile
+ import unittest
+@@ -118,6 +119,14 @@
+             (root / 'assets/broken.bin').write_bytes(b'bad')
+             with self.assertRaises(RuntimeError):
+                 validator.validate_assets(root)
++
++    def test_missing_tomllib_has_a_clear_error_without_traceback(self):
++        result = subprocess.run([sys.executable, '-c',
++            'import runpy, sys; sys.modules["tomllib"] = None; runpy.run_path(sys.argv[1], run_name="__main__")',
++            str(ROOT / 'tools/validate.py')], text=True, capture_output=True)
++        self.assertNotEqual(result.returncode, 0)
++        self.assertIn('Python 3.11+', result.stderr)
++        self.assertNotIn('Traceback', result.stderr)
+ 
+ 
+ class BuildTests(unittest.TestCase):
+@@ -158,10 +167,48 @@
+         self.env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
+                         TG18_TEST_LOG=str(self.log), TG18_BINARY_FIXTURE=executable_fixture().hex())
+         self.env.pop('CARGO_TARGET_DIR', None)
++        self.env.pop('TG18_PYTHON', None)
+ 
+     def run_build(self, *args, **env):
+         return subprocess.run(['bash', 'build.sh', *args], cwd=self.project,
+                               env={**self.env, **env}, text=True, capture_output=True)
++
++    def python_wrapper(self, name, compatible):
++        path = self.base / 'fake-bin' / name
++        path.write_text('#!' + sys.executable + '\n' +
++            'import json, os, subprocess, sys\n' +
++            ('if sys.argv[1:2] == ["-c"]: sys.exit(1)\n' if not compatible else '') +
++            'if os.environ.get("TG18_PYTHON_LOG"):\n' +
++            '    with open(os.environ["TG18_PYTHON_LOG"], "a") as log: log.write(json.dumps(sys.argv[1:])+"\\n")\n' +
++            'sys.exit(subprocess.call([sys.executable, *sys.argv[1:]]))\n')
++        path.chmod(0o755)
++        return path
++
++    def test_older_default_python_selects_compatible_version_for_all_helpers(self):
++        self.python_wrapper('python3', False)
++        self.python_wrapper('python3.12', True)
++        python_log = self.base / 'python-log.jsonl'
++        result = self.run_build(TG18_PYTHON_LOG=str(python_log))
++        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++        self.assertIn('Build Python: python3.12', result.stdout)
++        calls = [json.loads(line) for line in python_log.read_text().splitlines()]
++        helpers = [args[0] for args in calls if args and args[0].startswith('tools/')]
++        self.assertEqual(helpers, ['tools/validate.py', 'tools/patch_core.py',
++                                  'tools/fix_launcher.py', 'tools/validate.py', 'tools/validate.py'])
++
++    def test_explicit_python_override_is_used(self):
++        override = self.python_wrapper('chosen-python', True)
++        result = self.run_build('--check', '--no-core-patch', TG18_PYTHON=str(override))
++        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++        self.assertIn('Build Python: ' + str(override), result.stdout)
++
++    def test_incompatible_python_override_stops_before_compilation(self):
++        override = self.python_wrapper('old-python', False)
++        result = self.run_build(TG18_PYTHON=str(override))
++        self.assertNotEqual(result.returncode, 0)
++        self.assertIn('TG18_PYTHON must name a working Python 3.11+', result.stderr)
++        self.assertNotIn('Traceback', result.stderr)
++        self.assertFalse(self.log.exists())
+ 
+     def test_incremental_build_keeps_cache_and_creates_verified_outputs(self):
+         marker = self.project / 'target/keep-cache'
+@@ -197,6 +244,12 @@
+         self.assertNotEqual(result.returncode, 0)
+         self.assertFalse((self.project / 'READY_FOR_FTPD/tg18-3ds.3dsx').exists())
+ 
++    def test_optional_audio_debug_feature_is_passed_to_build(self):
++        result = self.run_build('--audio-debug')
++        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
++        self.assertTrue(any('build' in args and '--features' in args and 'audio-debug' in args for args in calls))
++
+     def test_check_only_does_not_stage_outputs(self):
+         result = self.run_build('--check', '--no-core-patch')
+         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+--- a/tg18-3ds/tests/host/Cargo.toml
++++ b/tg18-3ds/tests/host/Cargo.toml
+@@ -4,11 +4,15 @@
+ edition = "2021"
+ publish = false
+ 
+-# Independent of the 3DS frontend and its missing sibling core.
++# Host-only workspace; ctru-rs / devkitPro are not linked.
+ [workspace]
++
++[features]
++standalone-core-sound = []
+ 
+ [dependencies]
+ jpeg-encoder = "=0.6.1"
++tg18-core = { path = "../../../tg18-emu-main/core" }
+ 
+ [[test]]
+ name = "runtime"
+@@ -17,3 +21,7 @@
+ [[bin]]
+ name = "render-benchmark"
+ path = "../render_benchmark.rs"
++
++[[bin]]
++name = "audio-reproduction"
++path = "../audio_reproduction.rs"
+--- /dev/null
++++ b/tg18-3ds/tests/host/Cargo.lock
+@@ -0,0 +1,138 @@
++# This file is automatically @generated by Cargo.
++# It is not intended for manual editing.
++# Host tests use the application's exact registry dependency versions.
++version = 4
++
++[[package]]
++name = "adler2"
++version = "2.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
++
++[[package]]
++name = "itoa"
++version = "1.0.18"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
++
++[[package]]
++name = "jpeg-encoder"
++version = "0.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b454d911ac55068f53495488d8ccd0646eaa540c033a28ee15b07838afafb01f"
++
++[[package]]
++name = "memchr"
++version = "2.8.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
++
++[[package]]
++name = "miniz_oxide"
++version = "0.8.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
++dependencies = [
++ "adler2",
++]
++
++[[package]]
++name = "proc-macro2"
++version = "1.0.107"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
++dependencies = [
++ "unicode-ident",
++]
++
++[[package]]
++name = "quote"
++version = "1.0.47"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
++dependencies = [
++ "proc-macro2",
++]
++
++[[package]]
++name = "serde"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
++dependencies = [
++ "serde_core",
++ "serde_derive",
++]
++
++[[package]]
++name = "serde_core"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
++dependencies = [
++ "serde_derive",
++]
++
++[[package]]
++name = "serde_derive"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
++
++[[package]]
++name = "serde_json"
++version = "1.0.151"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
++dependencies = [
++ "itoa",
++ "memchr",
++ "serde",
++ "serde_core",
++ "zmij",
++]
++
++[[package]]
++name = "syn"
++version = "3.0.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "unicode-ident",
++]
++
++[[package]]
++name = "tg18-3ds-host-tests"
++version = "0.1.0"
++dependencies = [
++ "jpeg-encoder",
++ "tg18-core",
++]
++
++[[package]]
++name = "tg18-core"
++version = "0.1.0"
++dependencies = [
++ "miniz_oxide",
++ "serde",
++ "serde_json",
++]
++
++[[package]]
++name = "unicode-ident"
++version = "1.0.26"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
++
++[[package]]
++name = "zmij"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"

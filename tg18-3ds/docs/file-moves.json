@@ -1,0 +1,746 @@
+[
+  {
+    "original": ".gitignore",
+    "cleaned": ".gitignore"
+  },
+  {
+    "original": "Cargo.lock",
+    "cleaned": "Cargo.lock"
+  },
+  {
+    "original": "Cargo.toml",
+    "cleaned": "Cargo.toml"
+  },
+  {
+    "original": "Cargo.toml.before-v36.bak",
+    "cleaned": "archive/history/Cargo.toml.before-v36.bak"
+  },
+  {
+    "original": "README.md",
+    "cleaned": "archive/history/README.md"
+  },
+  {
+    "original": "READY_FOR_FTPD/tg18-3ds.3dsx",
+    "cleaned": "archive/prebuilt-original/tg18-3ds.3dsx"
+  },
+  {
+    "original": "READY_FOR_FTPD/tg18-3ds.smdh",
+    "cleaned": "archive/prebuilt-original/tg18-3ds.smdh"
+  },
+  {
+    "original": "assets/shell_original.png",
+    "cleaned": "assets/artwork/original/shell_original.png"
+  },
+  {
+    "original": "before_after_v25.png",
+    "cleaned": "archive/previews/before_after_v25.png"
+  },
+  {
+    "original": "before_after_v26.png",
+    "cleaned": "archive/previews/before_after_v26.png"
+  },
+  {
+    "original": "before_after_v27.png",
+    "cleaned": "archive/previews/before_after_v27.png"
+  },
+  {
+    "original": "before_after_v32.png",
+    "cleaned": "archive/previews/before_after_v32.png"
+  },
+  {
+    "original": "bezel_seam_comparison_v34.png",
+    "cleaned": "archive/previews/bezel_seam_comparison_v34.png"
+  },
+  {
+    "original": "bottom_before_after_v29.png",
+    "cleaned": "archive/previews/bottom_before_after_v29.png"
+  },
+  {
+    "original": "bottom_legend_v37.png",
+    "cleaned": "archive/previews/bottom_legend_v37.png"
+  },
+  {
+    "original": "bottom_pressed_preview.png",
+    "cleaned": "archive/previews/bottom_pressed_preview.png"
+  },
+  {
+    "original": "bottom_touchzones_preview.png",
+    "cleaned": "archive/previews/bottom_touchzones_preview.png"
+  },
+  {
+    "original": "build_v42.sh",
+    "cleaned": "archive/history/build_v42.sh"
+  },
+  {
+    "original": "build_v43.sh",
+    "cleaned": "archive/history/build_v43.sh"
+  },
+  {
+    "original": "build_v44.sh",
+    "cleaned": "archive/history/build_v44.sh"
+  },
+  {
+    "original": "build_v45.sh",
+    "cleaned": "archive/history/build_v45.sh"
+  },
+  {
+    "original": "build_v46.sh",
+    "cleaned": "archive/history/build_v46.sh"
+  },
+  {
+    "original": "build_v47.sh",
+    "cleaned": "archive/history/build_v47.sh"
+  },
+  {
+    "original": "build_v48.sh",
+    "cleaned": "archive/history/build_v48.sh"
+  },
+  {
+    "original": "build_v49.sh",
+    "cleaned": "archive/history/build_v49.sh"
+  },
+  {
+    "original": "cheat_menu_preview_v46.png",
+    "cleaned": "archive/previews/cheat_menu_preview_v46.png"
+  },
+  {
+    "original": "code_diff_v47.patch",
+    "cleaned": "archive/history/code_diff_v47.patch"
+  },
+  {
+    "original": "diagnostics_idle_preview_v49.png",
+    "cleaned": "archive/previews/diagnostics_idle_preview_v49.png"
+  },
+  {
+    "original": "diagnostics_preview_v46.png",
+    "cleaned": "archive/previews/diagnostics_preview_v46.png"
+  },
+  {
+    "original": "diagnostics_preview_v48.png",
+    "cleaned": "archive/previews/diagnostics_preview_v48.png"
+  },
+  {
+    "original": "edge_detail_v32.png",
+    "cleaned": "archive/previews/edge_detail_v32.png"
+  },
+  {
+    "original": "firmware_picker_preview.png",
+    "cleaned": "archive/previews/firmware_picker_preview.png"
+  },
+  {
+    "original": "firmware_row_sample.png",
+    "cleaned": "archive/previews/firmware_row_sample.png"
+  },
+  {
+    "original": "fix_launcher_v22.py",
+    "cleaned": "archive/history/fix_launcher_v22.py"
+  },
+  {
+    "original": "fix_launcher_v23.py",
+    "cleaned": "archive/history/fix_launcher_v23.py"
+  },
+  {
+    "original": "icon.png",
+    "cleaned": "icon.png"
+  },
+  {
+    "original": "install_photo_dependency_v36.py",
+    "cleaned": "archive/history/install_photo_dependency_v36.py"
+  },
+  {
+    "original": "install_v26_verified.py",
+    "cleaned": "archive/history/install_v26_verified.py"
+  },
+  {
+    "original": "left_edge_comparison_v35.png",
+    "cleaned": "archive/previews/left_edge_comparison_v35.png"
+  },
+  {
+    "original": "legend_preview_v36.png",
+    "cleaned": "archive/previews/legend_preview_v36.png"
+  },
+  {
+    "original": "patch_core_v49.py",
+    "cleaned": "archive/history/patch_core_v49.py"
+  },
+  {
+    "original": "patch_launcher.py",
+    "cleaned": "archive/history/patch_launcher.py"
+  },
+  {
+    "original": "prepare_firmwares_v40.py",
+    "cleaned": "archive/history/prepare_firmwares_v40.py"
+  },
+  {
+    "original": "prepare_firmwares_v41.py",
+    "cleaned": "archive/history/prepare_firmwares_v41.py"
+  },
+  {
+    "original": "prepare_firmwares_v42.py",
+    "cleaned": "archive/history/prepare_firmwares_v42.py"
+  },
+  {
+    "original": "preview_twinkle_v25.png",
+    "cleaned": "archive/previews/preview_twinkle_v25.png"
+  },
+  {
+    "original": "preview_twinkle_v26.png",
+    "cleaned": "archive/previews/preview_twinkle_v26.png"
+  },
+  {
+    "original": "preview_v27.png",
+    "cleaned": "archive/previews/preview_v27.png"
+  },
+  {
+    "original": "preview_v29.png",
+    "cleaned": "archive/previews/preview_v29.png"
+  },
+  {
+    "original": "romfs/boot_logo.bgr",
+    "cleaned": "assets/runtime/boot_logo.bgr"
+  },
+  {
+    "original": "romfs/boot_logo.png",
+    "cleaned": "assets/artwork/boot_logo.png"
+  },
+  {
+    "original": "romfs/bottom_bg.png",
+    "cleaned": "assets/artwork/bottom_bg.png"
+  },
+  {
+    "original": "romfs/bottom_shell_overlay.png",
+    "cleaned": "assets/artwork/bottom_shell_overlay.png"
+  },
+  {
+    "original": "romfs/bottom_twinkle_allow.bin",
+    "cleaned": "assets/runtime/bottom_twinkle_allow.bin"
+  },
+  {
+    "original": "romfs/bottom_with_shell.bgr",
+    "cleaned": "assets/runtime/bottom_with_shell.bgr"
+  },
+  {
+    "original": "romfs/bottom_with_shell.png",
+    "cleaned": "assets/artwork/bottom_with_shell.png"
+  },
+  {
+    "original": "romfs/controls_ui_overlay.png",
+    "cleaned": "assets/artwork/controls_ui_overlay.png"
+  },
+  {
+    "original": "romfs/controls_ui_overlay.rgba",
+    "cleaned": "assets/runtime/controls_ui_overlay.rgba"
+  },
+  {
+    "original": "romfs/diagnostics_glyphs.png",
+    "cleaned": "assets/artwork/diagnostics_glyphs.png"
+  },
+  {
+    "original": "romfs/diagnostics_glyphs.rgba",
+    "cleaned": "assets/runtime/diagnostics_glyphs.rgba"
+  },
+  {
+    "original": "romfs/diagnostics_idle_panel.png",
+    "cleaned": "assets/artwork/diagnostics_idle_panel.png"
+  },
+  {
+    "original": "romfs/diagnostics_idle_panel.rgba",
+    "cleaned": "assets/runtime/diagnostics_idle_panel.rgba"
+  },
+  {
+    "original": "romfs/diagnostics_panel.png",
+    "cleaned": "assets/artwork/diagnostics_panel.png"
+  },
+  {
+    "original": "romfs/diagnostics_panel.rgba",
+    "cleaned": "assets/runtime/diagnostics_panel.rgba"
+  },
+  {
+    "original": "romfs/firmware_picker_bg.bgr",
+    "cleaned": "assets/runtime/firmware_picker_bg.bgr"
+  },
+  {
+    "original": "romfs/firmware_picker_empty.rgba",
+    "cleaned": "assets/runtime/firmware_picker_empty.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_0_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_0_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_0_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_0_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_1_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_1_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_1_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_1_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_2_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_2_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_2_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_2_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_3_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_3_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_3_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_3_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_4_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_4_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_4_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_4_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_5_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_5_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_5_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_5_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_6_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_6_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_6_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_6_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_7_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_7_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_7_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_7_1.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_8_0.rgba",
+    "cleaned": "assets/runtime/firmware_row_8_0.rgba"
+  },
+  {
+    "original": "romfs/firmware_row_8_1.rgba",
+    "cleaned": "assets/runtime/firmware_row_8_1.rgba"
+  },
+  {
+    "original": "romfs/gp_big_glyph_atlas.png",
+    "cleaned": "assets/artwork/gp_big_glyph_atlas.png"
+  },
+  {
+    "original": "romfs/gp_big_glyph_atlas.rgba",
+    "cleaned": "assets/runtime/gp_big_glyph_atlas.rgba"
+  },
+  {
+    "original": "romfs/gp_detail_menu.png",
+    "cleaned": "assets/artwork/gp_detail_menu.png"
+  },
+  {
+    "original": "romfs/gp_detail_menu.rgba",
+    "cleaned": "assets/runtime/gp_detail_menu.rgba"
+  },
+  {
+    "original": "romfs/gp_glyph_atlas.png",
+    "cleaned": "assets/artwork/gp_glyph_atlas.png"
+  },
+  {
+    "original": "romfs/gp_glyph_atlas.rgba",
+    "cleaned": "assets/runtime/gp_glyph_atlas.rgba"
+  },
+  {
+    "original": "romfs/gp_undo_off.png",
+    "cleaned": "assets/artwork/gp_undo_off.png"
+  },
+  {
+    "original": "romfs/gp_undo_off.rgba",
+    "cleaned": "assets/runtime/gp_undo_off.rgba"
+  },
+  {
+    "original": "romfs/gp_undo_on.png",
+    "cleaned": "assets/artwork/gp_undo_on.png"
+  },
+  {
+    "original": "romfs/gp_undo_on.rgba",
+    "cleaned": "assets/runtime/gp_undo_on.rgba"
+  },
+  {
+    "original": "romfs/planet_menu.png",
+    "cleaned": "assets/artwork/planet_menu.png"
+  },
+  {
+    "original": "romfs/planet_menu.rgba",
+    "cleaned": "assets/runtime/planet_menu.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_0_off.png",
+    "cleaned": "assets/artwork/planet_speed_0_off.png"
+  },
+  {
+    "original": "romfs/planet_speed_0_off.rgba",
+    "cleaned": "assets/runtime/planet_speed_0_off.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_0_on.png",
+    "cleaned": "assets/artwork/planet_speed_0_on.png"
+  },
+  {
+    "original": "romfs/planet_speed_0_on.rgba",
+    "cleaned": "assets/runtime/planet_speed_0_on.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_1_off.png",
+    "cleaned": "assets/artwork/planet_speed_1_off.png"
+  },
+  {
+    "original": "romfs/planet_speed_1_off.rgba",
+    "cleaned": "assets/runtime/planet_speed_1_off.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_1_on.png",
+    "cleaned": "assets/artwork/planet_speed_1_on.png"
+  },
+  {
+    "original": "romfs/planet_speed_1_on.rgba",
+    "cleaned": "assets/runtime/planet_speed_1_on.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_2_off.png",
+    "cleaned": "assets/artwork/planet_speed_2_off.png"
+  },
+  {
+    "original": "romfs/planet_speed_2_off.rgba",
+    "cleaned": "assets/runtime/planet_speed_2_off.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_2_on.png",
+    "cleaned": "assets/artwork/planet_speed_2_on.png"
+  },
+  {
+    "original": "romfs/planet_speed_2_on.rgba",
+    "cleaned": "assets/runtime/planet_speed_2_on.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_3_off.png",
+    "cleaned": "assets/artwork/planet_speed_3_off.png"
+  },
+  {
+    "original": "romfs/planet_speed_3_off.rgba",
+    "cleaned": "assets/runtime/planet_speed_3_off.rgba"
+  },
+  {
+    "original": "romfs/planet_speed_3_on.png",
+    "cleaned": "assets/artwork/planet_speed_3_on.png"
+  },
+  {
+    "original": "romfs/planet_speed_3_on.rgba",
+    "cleaned": "assets/runtime/planet_speed_3_on.rgba"
+  },
+  {
+    "original": "romfs/planet_toggle_off.png",
+    "cleaned": "assets/artwork/planet_toggle_off.png"
+  },
+  {
+    "original": "romfs/planet_toggle_off.rgba",
+    "cleaned": "assets/runtime/planet_toggle_off.rgba"
+  },
+  {
+    "original": "romfs/planet_toggle_on.png",
+    "cleaned": "assets/artwork/planet_toggle_on.png"
+  },
+  {
+    "original": "romfs/planet_toggle_on.rgba",
+    "cleaned": "assets/runtime/planet_toggle_on.rgba"
+  },
+  {
+    "original": "romfs/save_notice.png",
+    "cleaned": "assets/artwork/save_notice.png"
+  },
+  {
+    "original": "romfs/save_notice.rgba",
+    "cleaned": "archive/history/romfs/save_notice.rgba"
+  },
+  {
+    "original": "romfs/shell_lcd.rgba",
+    "cleaned": "assets/runtime/shell_lcd.rgba"
+  },
+  {
+    "original": "romfs/shell_lcd_left.rgba",
+    "cleaned": "assets/runtime/shell_lcd_left.rgba"
+  },
+  {
+    "original": "romfs/shell_lcd_right.rgba",
+    "cleaned": "assets/runtime/shell_lcd_right.rgba"
+  },
+  {
+    "original": "romfs/speed_1.png",
+    "cleaned": "assets/artwork/speed_1.png"
+  },
+  {
+    "original": "romfs/speed_1.rgba",
+    "cleaned": "archive/history/romfs/speed_1.rgba"
+  },
+  {
+    "original": "romfs/speed_10.png",
+    "cleaned": "assets/artwork/speed_10.png"
+  },
+  {
+    "original": "romfs/speed_10.rgba",
+    "cleaned": "archive/history/romfs/speed_10.rgba"
+  },
+  {
+    "original": "romfs/speed_300.png",
+    "cleaned": "assets/artwork/speed_300.png"
+  },
+  {
+    "original": "romfs/speed_300.rgba",
+    "cleaned": "archive/history/romfs/speed_300.rgba"
+  },
+  {
+    "original": "romfs/speed_60.png",
+    "cleaned": "assets/artwork/speed_60.png"
+  },
+  {
+    "original": "romfs/speed_60.rgba",
+    "cleaned": "archive/history/romfs/speed_60.rgba"
+  },
+  {
+    "original": "romfs/toast_failed.rgba",
+    "cleaned": "assets/runtime/toast_failed.rgba"
+  },
+  {
+    "original": "romfs/toast_photo.rgba",
+    "cleaned": "assets/runtime/toast_photo.rgba"
+  },
+  {
+    "original": "romfs/toast_saved.rgba",
+    "cleaned": "assets/runtime/toast_saved.rgba"
+  },
+  {
+    "original": "romfs/top_bg.png",
+    "cleaned": "assets/artwork/top_bg.png"
+  },
+  {
+    "original": "romfs/top_shell_overlay.png",
+    "cleaned": "assets/artwork/top_shell_overlay.png"
+  },
+  {
+    "original": "romfs/top_stereo_left.bgr",
+    "cleaned": "assets/runtime/top_stereo_left.bgr"
+  },
+  {
+    "original": "romfs/top_stereo_left.png",
+    "cleaned": "assets/artwork/top_stereo_left.png"
+  },
+  {
+    "original": "romfs/top_stereo_right.bgr",
+    "cleaned": "assets/runtime/top_stereo_right.bgr"
+  },
+  {
+    "original": "romfs/top_stereo_right.png",
+    "cleaned": "assets/artwork/top_stereo_right.png"
+  },
+  {
+    "original": "romfs/top_twinkle_allow.bin",
+    "cleaned": "assets/runtime/top_twinkle_allow.bin"
+  },
+  {
+    "original": "romfs/top_with_shell.bgr",
+    "cleaned": "assets/runtime/top_with_shell.bgr"
+  },
+  {
+    "original": "romfs/top_with_shell.png",
+    "cleaned": "assets/artwork/top_with_shell.png"
+  },
+  {
+    "original": "save_layer_comparison_v30.png",
+    "cleaned": "archive/previews/save_layer_comparison_v30.png"
+  },
+  {
+    "original": "save_notice_bottom_preview_v28.png",
+    "cleaned": "archive/previews/save_notice_bottom_preview_v28.png"
+  },
+  {
+    "original": "shell_lcd_left_clean_vis_v33.png",
+    "cleaned": "archive/previews/shell_lcd_left_clean_vis_v33.png"
+  },
+  {
+    "original": "shell_lcd_right_clean_vis_v33.png",
+    "cleaned": "archive/previews/shell_lcd_right_clean_vis_v33.png"
+  },
+  {
+    "original": "src/diagnostics.rs",
+    "cleaned": "src/diagnostics.rs"
+  },
+  {
+    "original": "src/firmware_picker.rs",
+    "cleaned": "src/firmware_picker.rs"
+  },
+  {
+    "original": "src/main.rs",
+    "cleaned": "src/main.rs"
+  },
+  {
+    "original": "src/main.rs.backup",
+    "cleaned": "archive/source-backups/main.rs.backup"
+  },
+  {
+    "original": "src/main.rs.v12.backup",
+    "cleaned": "archive/source-backups/main.rs.v12.backup"
+  },
+  {
+    "original": "src/main.rs.v13.backup",
+    "cleaned": "archive/source-backups/main.rs.v13.backup"
+  },
+  {
+    "original": "src/main.rs.v14.backup",
+    "cleaned": "archive/source-backups/main.rs.v14.backup"
+  },
+  {
+    "original": "src/main.rs.v15.backup",
+    "cleaned": "archive/source-backups/main.rs.v15.backup"
+  },
+  {
+    "original": "src/main.rs.v24.backup",
+    "cleaned": "archive/source-backups/main.rs.v24.backup"
+  },
+  {
+    "original": "src/main.rs.v27.backup",
+    "cleaned": "archive/source-backups/main.rs.v27.backup"
+  },
+  {
+    "original": "src/main.rs.v28.backup",
+    "cleaned": "archive/source-backups/main.rs.v28.backup"
+  },
+  {
+    "original": "src/main.rs.v29.backup",
+    "cleaned": "archive/source-backups/main.rs.v29.backup"
+  },
+  {
+    "original": "src/main.rs.v30.backup",
+    "cleaned": "archive/source-backups/main.rs.v30.backup"
+  },
+  {
+    "original": "src/main.rs.v32.backup",
+    "cleaned": "archive/source-backups/main.rs.v32.backup"
+  },
+  {
+    "original": "src/main.rs.v35.backup",
+    "cleaned": "archive/source-backups/main.rs.v35.backup"
+  },
+  {
+    "original": "src/main.rs.v36.backup",
+    "cleaned": "archive/source-backups/main.rs.v36.backup"
+  },
+  {
+    "original": "src/main.rs.v39.backup",
+    "cleaned": "archive/source-backups/main.rs.v39.backup"
+  },
+  {
+    "original": "src/photo.rs",
+    "cleaned": "src/photo.rs"
+  },
+  {
+    "original": "src/photo.rs.v37.backup",
+    "cleaned": "archive/source-backups/photo.rs.v37.backup"
+  },
+  {
+    "original": "src/photo.rs.v38.backup",
+    "cleaned": "archive/source-backups/photo.rs.v38.backup"
+  },
+  {
+    "original": "stereo_halo_comparison_v30.png",
+    "cleaned": "archive/previews/stereo_halo_comparison_v30.png"
+  },
+  {
+    "original": "stereo_uniform_dark_preview_v31.png",
+    "cleaned": "archive/previews/stereo_uniform_dark_preview_v31.png"
+  },
+  {
+    "original": "tg18-3ds-homebrew-icon-v20/Cargo.toml",
+    "cleaned": "archive/history/tg18-3ds-homebrew-icon-v20/Cargo.toml"
+  },
+  {
+    "original": "tg18-3ds-homebrew-icon-v20/README.md",
+    "cleaned": "archive/history/tg18-3ds-homebrew-icon-v20/README.md"
+  },
+  {
+    "original": "tg18-3ds-homebrew-icon-v20/icon.png",
+    "cleaned": "archive/history/tg18-3ds-homebrew-icon-v20/icon.png"
+  },
+  {
+    "original": "tg18-3ds-homebrew-icon-v20/icon_preview_v20.png",
+    "cleaned": "archive/history/tg18-3ds-homebrew-icon-v20/icon_preview_v20.png"
+  },
+  {
+    "original": "toast_failed.png",
+    "cleaned": "archive/previews/toast_failed.png"
+  },
+  {
+    "original": "toast_photo.png",
+    "cleaned": "archive/previews/toast_photo.png"
+  },
+  {
+    "original": "toast_photo_v36.png",
+    "cleaned": "archive/previews/toast_photo_v36.png"
+  },
+  {
+    "original": "toast_saved.png",
+    "cleaned": "archive/previews/toast_saved.png"
+  },
+  {
+    "original": "toast_saved_v36.png",
+    "cleaned": "archive/previews/toast_saved_v36.png"
+  },
+  {
+    "original": "tools/make_gp_cheat_assets_v46.py",
+    "cleaned": "archive/history/tools/make_gp_cheat_assets_v46.py"
+  },
+  {
+    "original": "tools/make_menu_assets_v46.py",
+    "cleaned": "archive/history/tools/make_menu_assets_v46.py"
+  },
+  {
+    "original": "top_pill_v37.png",
+    "cleaned": "archive/previews/top_pill_v37.png"
+  },
+  {
+    "original": "top_toast_preview_v36.png",
+    "cleaned": "archive/previews/top_toast_preview_v36.png"
+  },
+  {
+    "original": "validate_v42.py",
+    "cleaned": "archive/history/validate_v42.py"
+  },
+  {
+    "original": "validate_v46.py",
+    "cleaned": "archive/history/validate_v46.py"
+  },
+  {
+    "original": "validate_v47.py",
+    "cleaned": "archive/history/validate_v47.py"
+  },
+  {
+    "original": "validate_v48.py",
+    "cleaned": "archive/history/validate_v48.py"
+  },
+  {
+    "original": "validate_v49.py",
+    "cleaned": "archive/history/validate_v49.py"
+  },
+  {
+    "original": "verify_launcher.py",
+    "cleaned": "archive/history/verify_launcher.py"
+  }
+]

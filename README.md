@@ -15,6 +15,43 @@ Bring your virtual pet to the 3DS with physical and touchscreen controls, stereo
 >
 > **Firmware is not included.** You must supply your own compatible Tamagotchi firmware dump.
 
+## Source code and building
+
+The source is available directly in this repository:
+
+- [3DS frontend](tg18-3ds/src/) and [included emulator core](tg18-emu-main/core/src/).
+- [Embedded assets and artwork](tg18-3ds/assets/).
+- [Tests](tg18-3ds/tests/) and [build tools](tg18-3ds/tools/).
+- [Original source ZIP](Meets-On-3DS-source-ready.zip).
+
+Keep `tg18-3ds` and `tg18-emu-main` beside each other: Cargo uses the included
+core through a relative path. Firmware dumps and personal saves are not included.
+
+Use Rust nightly with the 3DS toolchain, devkitPro's 3DS development tools
+(including `3dsxtool` and `smdhtool`), [cargo-3ds](https://github.com/rust3ds/cargo-3ds),
+and Python 3.11 or newer. Follow the [rust3ds setup instructions](https://github.com/rust3ds/ctru-rs)
+to configure the platform toolchain.
+
+From a clone or extracted repository download:
+
+```bash
+cd tg18-3ds
+bash build.sh
+```
+
+With devkitPro installed at `/opt/devkitpro`:
+
+```bash
+PATH="/opt/devkitpro/tools/bin:$PATH" bash build.sh
+```
+
+Outputs are `tg18-3ds/READY_FOR_FTPD/tg18-3ds.3dsx` and
+`tg18-3ds/READY_FOR_FTPD/tg18-3ds.smdh`. See the
+[frontend README](tg18-3ds/README.md) for build options and host test commands.
+
+This is the supplied source snapshot. The existing release binary has not been
+independently verified as a byte-for-byte build of this snapshot.
+
 ## Features
 
 - Firmware picker for nine English ON and Japanese Meets versions.

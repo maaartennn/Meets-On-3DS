@@ -1,0 +1,16 @@
+**/target/
+**/READY_FOR_FTPD/
+**/__pycache__/
+*.pyc
+.DS_Store
+._*
+*.bin
+*.rom
+*.t18s
+*.snap
+*.flash
+**/saves/
+
+# Embedded graphics masks, not firmware or saves.
+!tg18-3ds/assets/runtime/bottom_twinkle_allow.bin
+!tg18-3ds/assets/runtime/top_twinkle_allow.bin
